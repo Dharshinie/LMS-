@@ -203,6 +203,10 @@ src/
 
 For issues or questions, please refer to the documentation or contact the development team.
 
+<b>##Author</b>
+
+Dharshinie E
+
 ## License
 
 Proprietary - All rights reserved
