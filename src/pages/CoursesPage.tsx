@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { BookOpen, Plus, Play, CheckCircle, Clock, Users, Edit, Info } from 'lucide-react';
+import { CourseBuilderModal } from '../components/CourseBuilder/CourseBuilderModal';
 import type { UserRole } from '../types/database';
 
 interface CourseWithEnrollment {
