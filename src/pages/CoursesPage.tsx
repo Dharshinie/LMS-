@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { BookOpen, Plus, Play, CheckCircle, Clock, Users, Edit } from 'lucide-react';
-import { CourseBuilderModal } from '../components/CourseBuilder/CourseBuilderModal';
+import { BookOpen, Plus, Play, CheckCircle, Clock, Users, Edit, Info } from 'lucide-react';
+import type { UserRole } from '../types/database';
 
 interface CourseWithEnrollment {
   id: string;
@@ -24,16 +24,66 @@ interface CourseWithEnrollment {
 
 export function CoursesPage() {
   const { currentOrganization, user } = useAuth();
-  const role = currentOrganization?.role;
+  const role = currentOrganization?.role as UserRole | undefined;
   const [courses, setCourses] = useState<CourseWithEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithEnrollment | null>(null);
   const [showCourseBuilder, setShowCourseBuilder] = useState(false);
+  const [instructorCourseLimit, setInstructorCourseLimit] = useState<number | null>(null);
+  const [instructorCourseCount, setInstructorCourseCount] = useState<number | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(false);
 
   useEffect(() => {
     loadCourses();
   }, [currentOrganization?.organization_id, user?.id]);
+
+  useEffect(() => {
+    if (
+      role === 'instructor' &&
+      currentOrganization?.organization_id &&
+      user?.id
+    ) {
+      loadInstructorCourseQuota();
+    }
+  }, [role, currentOrganization?.organization_id, user?.id]);
+
+  const loadInstructorCourseQuota = async () => {
+    if (!currentOrganization?.organization_id || !user?.id || role !== 'instructor') {
+      return;
+    }
+
+    try {
+      setQuotaLoading(true);
+
+      const { data: member, error: memberError } = await supabase
+        .from('organization_members')
+        .select('max_courses')
+        .eq('organization_id', currentOrganization.organization_id)
+        .eq('user_id', user.id)
+        .eq('role', 'instructor')
+        .maybeSingle();
+
+      if (memberError) throw memberError;
+
+      const limit = (member?.max_courses ?? 5) as number;
+      setInstructorCourseLimit(limit);
+
+      const { count, error: countError } = await supabase
+        .from('courses')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', currentOrganization.organization_id)
+        .eq('instructor_id', user.id);
+
+      if (countError) throw countError;
+
+      setInstructorCourseCount(count ?? 0);
+    } catch (err) {
+      console.error('Error loading instructor course quota:', err);
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
 
   const loadCourses = async () => {
     if (!currentOrganization?.organization_id || !user?.id) {
@@ -43,11 +93,24 @@ export function CoursesPage() {
 
     try {
       setError(null);
-      const { data: coursesData, error: coursesError } = await supabase
+      let query = supabase
         .from('courses')
         .select('*')
-        .eq('organization_id', currentOrganization.organization_id)
-        .eq('is_published', true);
+        .eq('organization_id', currentOrganization.organization_id);
+
+      // Learners only see published courses.
+      if (role === 'learner') {
+        query = query.eq('is_published', true);
+      }
+
+      // Instructors see their own courses (published or draft).
+      if (role === 'instructor') {
+        query = query.eq('instructor_id', user.id);
+      }
+
+      // Admin / super_admin see all courses in the organization (no extra filter).
+
+      const { data: coursesData, error: coursesError } = await query;
 
       if (coursesError) throw coursesError;
 
@@ -106,6 +169,18 @@ export function CoursesPage() {
   const handleSaveCourse = async (courseData: any) => {
     if (!currentOrganization?.organization_id || !user?.id) return;
 
+    if (role === 'instructor') {
+      const limit = instructorCourseLimit ?? 5;
+      const count = instructorCourseCount ?? 0;
+      if (count >= limit) {
+        alert(
+          `You have reached your course limit (${count}/${limit}). ` +
+            'Contact a super admin if you need a higher limit.'
+        );
+        return;
+      }
+    }
+
     try {
       const coursePayload = {
         organization_id: currentOrganization.organization_id,
@@ -158,6 +233,9 @@ export function CoursesPage() {
       }
 
       loadCourses();
+      if (role === 'instructor') {
+        loadInstructorCourseQuota();
+      }
       setShowCourseBuilder(false);
     } catch (error) {
       console.error('Error saving course:', error);
@@ -250,7 +328,13 @@ export function CoursesPage() {
         {(role === 'instructor' || role === 'admin' || role === 'super_admin') && (
           <button
             onClick={() => setShowCourseBuilder(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={
+              role === 'instructor' &&
+              instructorCourseLimit !== null &&
+              instructorCourseCount !== null &&
+              instructorCourseCount >= instructorCourseLimit
+            }
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-5 h-5" />
             Create Course
@@ -259,11 +343,36 @@ export function CoursesPage() {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-900">
-          Signed in as <span className="font-semibold">{user?.email}</span> |
-          Role <span className="font-semibold">{(role || 'unassigned').replace('_', ' ')}</span> |
-          Organization <span className="font-semibold">{currentOrganization?.organization.name || 'None'}</span>
-        </p>
+        <div className="flex flex-col gap-1 text-sm text-blue-900">
+          <p>
+            Signed in as <span className="font-semibold">{user?.email}</span> |
+            Role{' '}
+            <span className="font-semibold">
+              {(role || 'unassigned').replace('_', ' ')}
+            </span>{' '}
+            |
+            Organization{' '}
+            <span className="font-semibold">
+              {currentOrganization?.organization.name || 'None'}
+            </span>
+          </p>
+          {role === 'instructor' && (
+            <p className="flex items-center gap-1">
+              <Info className="w-4 h-4 text-blue-700" />
+              Course limit:{' '}
+              <span className="font-semibold">
+                {instructorCourseCount ?? '–'}
+                {' / '}
+                {instructorCourseLimit ?? 5}
+              </span>
+              {quotaLoading && (
+                <span className="text-xs text-blue-800 ml-1">
+                  Updating...
+                </span>
+              )}
+            </p>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -291,7 +400,10 @@ export function CoursesPage() {
                 : 'Get started by creating your first course.'}
             </p>
             {(role === 'instructor' || role === 'admin' || role === 'super_admin') && (
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+              <button
+                onClick={() => setShowCourseBuilder(true)}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
                 Create Your First Course
               </button>
             )}

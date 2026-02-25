@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { BarChart3, BookOpen, Users, TrendingUp, Clock, CheckCircle, Play } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  Users,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  Play,
+  MessageCircle,
+  HelpCircle,
+  ListChecks,
+} from 'lucide-react';
 
 interface EnrolledCourse {
   id: string;
@@ -25,6 +36,22 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     certificates: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptionA, setPollOptionA] = useState('Yes');
+  const [pollOptionB, setPollOptionB] = useState('No');
+  const [pollVotes, setPollVotes] = useState<{ a: number; b: number }>({
+    a: 0,
+    b: 0,
+  });
+  const [comments, setComments] = useState<
+    { id: number; author: string; text: string; createdAt: string }[]
+  >([]);
+  const [newComment, setNewComment] = useState('');
+  const [faqs, setFaqs] = useState<
+    { id: number; question: string; answer: string }[]
+  >([]);
+  const [faqQuestion, setFaqQuestion] = useState('');
+  const [faqAnswer, setFaqAnswer] = useState('');
 
   useEffect(() => {
     if (currentOrganization?.organization_id && user?.id) {
@@ -108,6 +135,48 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVote = (option: 'a' | 'b') => {
+    setPollVotes((prev) => ({
+      ...prev,
+      [option]: prev[option] + 1,
+    }));
+  };
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = newComment.trim();
+    if (!text) return;
+
+    setComments((prev) => [
+      {
+        id: Date.now(),
+        author: profile?.full_name || user?.email || 'You',
+        text,
+        createdAt: new Date().toLocaleTimeString(),
+      },
+      ...prev,
+    ]);
+    setNewComment('');
+  };
+
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = faqQuestion.trim();
+    const a = faqAnswer.trim();
+    if (!q || !a) return;
+
+    setFaqs((prev) => [
+      {
+        id: Date.now(),
+        question: q,
+        answer: a,
+      },
+      ...prev,
+    ]);
+    setFaqQuestion('');
+    setFaqAnswer('');
   };
 
   const getRoleName = (role: string) => {
@@ -251,6 +320,206 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         </div>
       )}
 
+      {role === 'instructor' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Quick Poll</h2>
+                <p className="text-sm text-gray-600">
+                  Create a simple poll to engage your learners.
+                </p>
+              </div>
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <ListChecks className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Poll question
+                </label>
+                <input
+                  type="text"
+                  value={pollQuestion}
+                  onChange={(e) => setPollQuestion(e.target.value)}
+                  placeholder="e.g. How confident do you feel about today's topic?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Option A
+                  </label>
+                  <input
+                    type="text"
+                    value={pollOptionA}
+                    onChange={(e) => setPollOptionA(e.target.value)}
+                    className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Option B
+                  </label>
+                  <input
+                    type="text"
+                    value={pollOptionB}
+                    onChange={(e) => setPollOptionB(e.target.value)}
+                    className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 mt-2">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Live results (sample)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleVote('a')}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-sm flex items-center justify-between"
+                >
+                  <span>{pollOptionA || 'Option A'}</span>
+                  <span className="text-xs text-gray-500">
+                    {pollVotes.a} votes
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVote('b')}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-sm flex items-center justify-between"
+                >
+                  <span>{pollOptionB || 'Option B'}</span>
+                  <span className="text-xs text-gray-500">
+                    {pollVotes.b} votes
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Comments & Feedback
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Capture ideas and notes from your sessions.
+                </p>
+              </div>
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+
+            <form onSubmit={handleAddComment} className="space-y-2 mb-4">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Add a quick note or learner feedback..."
+              />
+              <button
+                type="submit"
+                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              >
+                Add Comment
+              </button>
+            </form>
+
+            {comments.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No comments yet. Use this space to capture discussion points or
+                reminders for your next session.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {comments.map((c) => (
+                  <div
+                    key={c.id}
+                    className="border border-gray-100 rounded-lg p-3 bg-gray-50"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-700">
+                        {c.author}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {c.createdAt}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Course FAQs</h2>
+                <p className="text-sm text-gray-600">
+                  Build a quick FAQ to answer common learner questions.
+                </p>
+              </div>
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <HelpCircle className="w-5 h-5 text-purple-600" />
+              </div>
+            </div>
+
+            <form onSubmit={handleAddFaq} className="space-y-2 mb-4">
+              <input
+                type="text"
+                value={faqQuestion}
+                onChange={(e) => setFaqQuestion(e.target.value)}
+                placeholder="Question"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <textarea
+                value={faqAnswer}
+                onChange={(e) => setFaqAnswer(e.target.value)}
+                rows={2}
+                placeholder="Answer"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <button
+                type="submit"
+                className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+              >
+                Add FAQ
+              </button>
+            </form>
+
+            {faqs.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No FAQs yet. Start by adding the questions learners ask you
+                most often.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {faqs.map((item) => (
+                  <details
+                    key={item.id}
+                    className="border border-gray-100 rounded-lg p-3 bg-gray-50"
+                  >
+                    <summary className="text-sm font-semibold text-gray-900 cursor-pointer">
+                      {item.question}
+                    </summary>
+                    <p className="mt-2 text-sm text-gray-800">{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -288,7 +557,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       </div>
 
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-8 text-white">
-        <h2 className="text-2xl font-bold mb-2">Getting Started with Apex LMS</h2>
+        <h2 className="text-2xl font-bold mb-2">Getting Started with TechCorp Academy</h2>
         <p className="text-blue-100 mb-4">
           {role === 'learner'
             ? 'Explore your available courses and continue learning to achieve your goals.'

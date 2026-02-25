@@ -95,6 +95,7 @@ export interface Database {
           role: UserRole;
           invited_by: string | null;
           joined_at: string;
+          max_courses: number | null;
         };
         Insert: {
           id?: string;
@@ -103,6 +104,7 @@ export interface Database {
           role?: UserRole;
           invited_by?: string | null;
           joined_at?: string;
+          max_courses?: number | null;
         };
         Update: {
           id?: string;
@@ -111,6 +113,7 @@ export interface Database {
           role?: UserRole;
           invited_by?: string | null;
           joined_at?: string;
+          max_courses?: number | null;
         };
       };
       courses: {

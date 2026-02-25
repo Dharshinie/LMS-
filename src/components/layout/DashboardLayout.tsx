@@ -29,7 +29,7 @@ export function DashboardLayout({ children, currentPage, onNavigate }: Dashboard
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'admin', 'instructor', 'learner'] },
     { id: 'courses', label: 'Courses', icon: BookOpen, roles: ['super_admin', 'admin', 'instructor', 'learner'] },
-    { id: 'users', label: 'Users', icon: Users, roles: ['super_admin', 'admin'] },
+    { id: 'users', label: 'Users', icon: Users, roles: ['super_admin', 'admin', 'instructor'] },
     { id: 'organizations', label: 'Organizations', icon: Building2, roles: ['super_admin'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'admin'] },
   ];
